@@ -1,0 +1,31 @@
+{
+  "name": "angular-licode",
+  "version": "0.0.36",
+  "description": "Angular directive for licode library",
+  "main": "./src/angular-licode.js",
+  "directories": {
+    "test": "tests"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "eslint": "^3.12.2",
+    "eslint-config-angular": "^0.5.0",
+    "eslint-config-eslint": "^3.0.0",
+    "eslint-config-google": "^0.7.1",
+    "eslint-plugin-angular": "^1.5.0",
+    "eslint-tap": "^2.0.0"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mrbatista/angular-licode.git"
+  },
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/mrbatista/angular-licode/issues"
+  },
+  "homepage": "https://github.com/mrbatista/angular-licode#readme"
+}

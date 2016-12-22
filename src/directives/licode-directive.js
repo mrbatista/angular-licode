@@ -1,18 +1,21 @@
 'use strict';
 
 angular.module('pl-licode-directives')
-  .directive('licode', function (CameraService, Erizo, $rootScope) {
+  .directive('licode', function(CameraService, Erizo, $log, $rootScope,
+                                $window) {
     return {
       restrict: 'E',
       replace: true,
       template: '<div class="licode"></div>',
       scope: {
         token: '=',
-        mute: '@'
+        mute: '@',
       },
       link: function postLink(scope, element, attrs) {
-
-        var room, stream, elementId;
+        var room;
+        var status;
+        var stream;
+        var elementId;
         var boolTrueTestRx = /yes|true/i;
         var boolFalseTestRx = /no|false/i;
 
@@ -21,7 +24,7 @@ angular.module('pl-licode-directives')
          * @param  {string}  value the value to check
          * @return {Boolean}
          */
-        function isTrue(value){
+        function isTrue(value) {
           return boolTrueTestRx.test(value);
         }
 
@@ -30,15 +33,14 @@ angular.module('pl-licode-directives')
          * @param  {string}  value the value to check
          * @return {Boolean}
          */
-        function isFalse(value){
+        function isFalse(value) {
           return boolFalseTestRx.test(value);
         }
 
         // Manage and triggers room status
-        function updateRoomStatus(){
-          if(room){
-            var status;
-            switch(room.state){
+        function updateRoomStatus() {
+          if (room) {
+            switch (room.state) {
               case 0:
                 status = 'disconnected';
                 break;
@@ -53,22 +55,28 @@ angular.module('pl-licode-directives')
             }
 
             // Trigger the event
-            scope.$emit('licode-room-status-changed', { status: status, room: room });
+            scope.$emit('licode-room-status-changed', {
+              status: status,
+              room: room,
+            });
 
-            //id disconnected set room = null
-            if(status === 'disconnected'){
+            // id disconnected set room = null
+            if (status === 'disconnected') {
               room = null;
             }
           }
         }
 
         // Manage and triggers room status
-        function updateStreamStatus(status){
+        function updateStreamStatus(status) {
           // Trigger the event
-          scope.$emit('licode-stream-status-changed', { status: status, stream: stream });
+          scope.$emit('licode-stream-status-changed', {
+            status: status,
+            stream: stream,
+          });
 
           // Set the stream as null
-          if(status === 'removed'){
+          if (status === 'removed') {
             stream = null;
           }
         }
@@ -80,7 +88,7 @@ angular.module('pl-licode-directives')
         /**
          * Handle disconnection for inbound flow
          */
-        function inboundRoomDisconnected(){
+        function inboundRoomDisconnected() {
           // Trigger event for room
           updateRoomStatus();
         }
@@ -89,18 +97,18 @@ angular.module('pl-licode-directives')
          * Handle connection for inbound flow
          * @param  {event} roomEvent
          */
-        function inboundRoomConnected(roomEvent){
+        function inboundRoomConnected(roomEvent) {
           // Trigger event for room
           updateRoomStatus();
 
-          if(roomEvent.streams.length < 1){
-            console.log('no stream in this room');
+          if (roomEvent.streams.length < 1) {
+            $log.debug('no stream in this room');
             return;
           }
 
           // Stream subscribed
           room.addEventListener('stream-subscribed', function(streamEvent) {
-            scope.$apply(function(){
+            scope.$apply(function() {
               // Set the stream variable
               stream = streamEvent.stream;
 
@@ -113,13 +121,13 @@ angular.module('pl-licode-directives')
               // Trigger event for the video element created
               scope.$emit('licode-video-created', stream);
 
-              // The the video player mute flag
+              // The video player mute flag
               stream.player.video.muted = isTrue(scope.mute);
             });
           });
 
-          // Stream removed from the rrom
-          room.addEventListener('stream-removed', function(){
+          // Stream removed from the room
+          room.addEventListener('stream-removed', function() {
             // Trigger event for stream
             updateStreamStatus('removed');
           });
@@ -131,7 +139,7 @@ angular.module('pl-licode-directives')
         /**
          * Handle disconnection for outbound flow
          */
-        function outboundRoomDisconnected(){
+        function outboundRoomDisconnected() {
           // Trigger event for room
           updateRoomStatus();
         }
@@ -139,14 +147,13 @@ angular.module('pl-licode-directives')
         /**
          * Handle connection for outbound flow
          */
-        function outboundRoomConnected(){
-
+        function outboundRoomConnected() {
           // Trigger event for room
           updateRoomStatus();
 
           // Stream added to the rrom
           room.addEventListener('stream-added', function(licodeStreamEvent) {
-            scope.$apply(function(){
+            scope.$apply(function() {
               // Set the stream variable
               stream = licodeStreamEvent.stream;
 
@@ -154,56 +161,63 @@ angular.module('pl-licode-directives')
               updateStreamStatus('added');
 
               // If the stream is the local stream
-              if (CameraService.licodeStream.getID() === licodeStreamEvent.stream.getID()) {
-
+              if (CameraService.licodeStream.getID() ===
+                licodeStreamEvent.stream.getID()) {
                 // Start recording this stream
-                if(isTrue(attrs.record)){
-                  room.startRecording(CameraService.licodeStream, function(recordingId, error, timestamp){
-                    // Trigger event for stream started recording
-                    scope.$emit('licode-stream-recording-started', recordingId, timestamp);
-                  });
+                if (isTrue(attrs.record)) {
+                  room.startRecording(CameraService.licodeStream,
+                    function(recordingId, error, timestamp) {
+                      // Trigger event for stream started recording
+                      scope.$emit('licode-stream-recording-started',
+                        recordingId, timestamp);
+                    });
                 }
               }
             });
           });
 
           // Stream removed from the rrom
-          room.addEventListener('stream-removed', function(){
+          room.addEventListener('stream-removed', function() {
             // Trigger event for stream
             updateStreamStatus('removed');
           });
 
           // Publish stream to the room
-          room.publish(CameraService.licodeStream, {maxVideoBW: 1200, minVideoBW: 600, maxAudioBW: 96});
+          room.publish(CameraService.licodeStream, {
+            maxVideoBW: 1200,
+            minVideoBW: 600,
+            maxAudioBW: 96,
+          });
         }
 
         // Make the connection
-        function connect(token){
-          if(room){ return; }
+        function connect(token) {
+          if (room) {
+            return;
+          }
 
           token = token || scope.token;
 
           // Create the new room and add the event handlers
           try {
             // Create the room with the new token
+            // eslint-disable-next-line new-cap
             room = Erizo.Room({token: token});
 
             // Room disconnected handler from strategy
             room.addEventListener('room-disconnected', function(roomEvent) {
-              if(attrs.flow === 'inbound'){
+              if (attrs.flow === 'inbound') {
                 inboundRoomDisconnected(roomEvent);
-              }
-              else{
+              } else {
                 outboundRoomDisconnected(roomEvent);
               }
             });
 
             // Room connected handler from strategy
             room.addEventListener('room-connected', function(roomEvent) {
-              if(attrs.flow === 'inbound'){
+              if (attrs.flow === 'inbound') {
                 inboundRoomConnected(roomEvent);
-              }
-              else{
+              } else {
                 outboundRoomConnected(roomEvent);
               }
             });
@@ -213,16 +227,15 @@ angular.module('pl-licode-directives')
 
             // Trigger event for room
             updateRoomStatus();
-
-          } catch (e){
+          } catch (e) {
             room = null;
             return;
           }
         }
 
-        function disconnect(){
+        function disconnect() {
           // Disconnect if exist a room and it's connected
-          if(room && room.state === 2){
+          if (room && room.state === 2) {
             room.disconnect();
           }
 
@@ -230,9 +243,8 @@ angular.module('pl-licode-directives')
           scope.token = null;
 
           // Close the stream
-          if(stream){
-
-            if(attrs.flow === 'outbound'){
+          if (stream) {
+            if (attrs.flow === 'outbound') {
               stream.removeEventListener('access-accepted');
               stream.removeEventListener('access-denied');
             }
@@ -240,49 +252,54 @@ angular.module('pl-licode-directives')
           }
 
           // Remove and disconnect from the room
-          if(room){
-            try{
+          if (room) {
+            try {
               room.removeEventListener('room-connected');
               room.removeEventListener('room-disconnected');
               room.removeEventListener('stream-removed');
 
-              if(attrs.flow === 'outbound'){
+              if (attrs.flow === 'outbound') {
                 room.removeEventListener('stream-added');
-              }
-              else{
+              } else {
                 room.removeEventListener('stream-subscribed');
               }
-            } catch (e){}
-
+            } catch (e) {}
           }
         }
 
         // Set an ID
-        elementId = (scope.token)? 'licode_' + JSON.parse(window.atob(scope.token)).tokenId : 'licode_' + (new Date()).getTime();
+        if (scope.token) {
+          elementId = angular.fromJson($window.atob(scope.token)).tokenId;
+        } else {
+          elementId = (new Date()).getTime();
+        }
+
+        elementId = 'licode_' + elementId;
         element.attr('id', elementId);
 
         // Set video size
         element.css({
           'width': attrs.width,
-          'height': attrs.height
+          'height': attrs.height,
         });
 
         // Initiate the stream (camera/mic permissions)
-        if(attrs.flow === 'outbound'){
-
+        if (attrs.flow === 'outbound') {
           // The on or off the stream recording
-          attrs.$observe('record', function(){
+          attrs.$observe('record', function() {
             // Start recording
-            if(isTrue(attrs.record) && scope.token){
-              room.startRecording(stream, function(recordingId, error, timestamp){
-                // Trigger event for stream started recording
-                scope.$emit('licode-stream-recording-started', recordingId, timestamp);
-              });
+            if (isTrue(attrs.record) && scope.token) {
+              room.startRecording(stream,
+                function(recordingId, error, timestamp) {
+                  // Trigger event for stream started recording
+                  scope.$emit('licode-stream-recording-started',
+                    recordingId, timestamp);
+                });
             }
 
             // Stop recording
-            if(isFalse(attrs.record) && scope.token){
-              room.stopRecording(stream, function(){
+            if (isFalse(attrs.record) && scope.token) {
+              room.stopRecording(stream, function() {
                 // Trigger event for stream stoped recording
                 scope.$emit('licode-stream-recording-stopped');
               });
@@ -290,52 +307,54 @@ angular.module('pl-licode-directives')
           });
 
           // Create the stream
-          CameraService.start().then(function () {
+          CameraService.start().then(function() {
             // Only on outbound, mute stream to avoid mic noise
-            CameraService.licodeStream.player.video.muted = isTrue(scope.mute) || true;
-          }, function(){
+            CameraService.licodeStream.player.video.muted = isTrue(scope.mute)
+              || true;
+          }, function() {
             // FIXME: This is a hack, prevent permition denied without asking
-            CameraService.start().then(function () {
+            CameraService.start().then(function() {
               // Only on outbound, mute stream to avoid mic noise
-              CameraService.licodeStream.player.video.muted = isTrue(scope.mute) || true;
+              CameraService.licodeStream.player.video.muted = isTrue(scope.mute)
+                || true;
             });
           });
         }
 
         // When the token changes to a valid value triggers connection
-        scope.$watch('token', function(tokenValue){
+        scope.$watch('token', function(tokenValue) {
           // Connect
-          if(isTrue(attrs.on) && tokenValue){
+          if (isTrue(attrs.on) && tokenValue) {
             connect();
           }
-
         });
 
         // Turn on or off the licode connection
-        attrs.$observe('on', function(){
+        attrs.$observe('on', function() {
           // Connect if theres a valid token
-          if(isTrue(attrs.on) && scope.token){
+          if (isTrue(attrs.on) && scope.token) {
             connect();
           }
 
           // Disconnect
-          if(isFalse(attrs.on)){
+          if (isFalse(attrs.on)) {
             disconnect();
           }
         });
 
         // Mute the current stream
-        scope.$watch('mute', function(value){
-          if(stream && stream.player){
+        scope.$watch('mute', function(value) {
+          if (stream && stream.player) {
             stream.player.video.muted = isTrue(value);
           }
         });
 
         // Show the video when the camera service is accepted
-        $rootScope.$on('camera-access-accepted', function(){
+        /* eslint-disable angular/on-watch */
+        $rootScope.$on('camera-access-accepted', function() {
           // Create the stream video element
           CameraService.licodeStream.show(elementId);
         });
-      }
+      },
     };
   });
